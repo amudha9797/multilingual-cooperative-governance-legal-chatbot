@@ -1,4 +1,6 @@
+import os
 from base64 import b64encode
+from dotenv import load_dotenv
 
 from flask import (
     Flask,
@@ -33,8 +35,12 @@ from sarvam_voice import (
     SARVAM_LANG_MAP,
 )
 
+from rag_engine import query_legal_rag
+
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = "cooperative_chatbot_secret_key_2026"
+app.secret_key = os.getenv("SECRET_KEY", "cooperative_chatbot_secret_key_2026")
 
 LANGUAGES = [
     "English",
@@ -149,6 +155,14 @@ def search_answer(user_question, language="English"):
 
     if best_answer and best_score >= 40:
         return best_answer
+
+    # Fallback to AI legal RAG engine (Gemini AI with legal knowledge base fallback)
+    try:
+        ai_response = query_legal_rag(user_question, language=language)
+        if ai_response and ai_response.strip():
+            return ai_response.strip()
+    except Exception as rag_err:
+        print("RAG query exception:", rag_err)
 
     return (
         f"Sorry, I could not find a suitable answer in {language}.\n\n"
@@ -309,7 +323,10 @@ def admin_login():
         username = str(request.form.get("username", "")).strip()
         password = str(request.form.get("password", "")).strip()
 
-        if username == "admin" and password == "admin123":
+        admin_user = os.getenv("ADMIN_USERNAME", "admin").strip()
+        admin_pass = os.getenv("ADMIN_PASSWORD", "admin123").strip()
+
+        if username == admin_user and password == admin_pass:
             session["admin_logged_in"] = True
             session["admin_username"] = username
             return redirect(url_for("admin_dashboard"))

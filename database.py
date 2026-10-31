@@ -1,9 +1,21 @@
+import json
 import os
+import shutil
 import sqlite3
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "cooperative.db")
+DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "cooperative.db")
+
+# If DATA_DIR is a custom persistent volume (e.g., /data on Render) and DB_PATH does not exist yet,
+# seed it from the repository's cooperative.db.
+if not os.path.exists(DB_PATH) and os.path.exists(os.path.join(BASE_DIR, "cooperative.db")):
+    try:
+        shutil.copy2(os.path.join(BASE_DIR, "cooperative.db"), DB_PATH)
+    except Exception as copy_err:
+        print("Warning: Could not copy initial DB to DATA_DIR:", copy_err)
 
 DEFAULT_COOPERATIVE_ID = 1
 DEFAULT_COOPERATIVE_NAME = "General Cooperative Society"
@@ -89,6 +101,30 @@ def initialize_database():
     connection.execute(
         "UPDATE enquiries SET reply = answer WHERE (reply = '' OR reply IS NULL) AND answer IS NOT NULL AND answer <> ''"
     )
+
+    # Auto-seed knowledge table from data.json if table is empty
+    cursor.execute("SELECT COUNT(*) FROM knowledge")
+    count_row = cursor.fetchone()
+    count = count_row[0] if count_row else 0
+    if count == 0:
+        data_json_path = os.path.join(BASE_DIR, "data.json")
+        if os.path.exists(data_json_path):
+            try:
+                with open(data_json_path, "r", encoding="utf-8") as f:
+                    seed_data = json.load(f)
+                    for item in seed_data:
+                        q = str(item.get("question", "")).strip()
+                        a = str(item.get("answer", "")).strip()
+                        lang = str(item.get("language", "English")).strip()
+                        cat = str(item.get("category", "General")).strip()
+                        if q and a:
+                            cursor.execute(
+                                "INSERT INTO knowledge (question, answer, language, category) VALUES (?, ?, ?, ?)",
+                                (q, a, lang, cat),
+                            )
+                print("Seeded knowledge table from data.json successfully.")
+            except Exception as seed_err:
+                print("Warning: Could not auto-seed data.json:", seed_err)
 
     connection.commit()
     connection.close()
