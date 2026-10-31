@@ -484,11 +484,13 @@ def internal_server_error(error):
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("FLASK_DEBUG", "False").lower() in ("true", "1")
     print("==============================================")
     print(" MULTILINGUAL COOPERATIVE CHATBOT")
     print("==============================================")
-    print("Website : http://127.0.0.1:5000/")
-    print("Admin   : http://127.0.0.1:5000/admin/login")
+    print(f"Website : http://0.0.0.0:{port}/")
+    print("Admin   : http://0.0.0.0:{port}/admin/login")
     print("Languages:", ", ".join(LANGUAGES))
     print("==============================================")
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=debug)
